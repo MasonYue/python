@@ -1,0 +1,331 @@
+import doctest
+
+
+# ======================== helper functions ====================
+def collect_word(word):
+    """(str) -> str
+    This is a function collect the alphanumeric substring starts from the
+    beginning of the word
+    >>> collect_word("hello")
+    'hello'
+    >>> collect_word("hello123")
+    'hello123'
+    >>> collect_word("@hello")
+    ''
+    >>> collect_word("hello@John")
+    'hello'
+    """
+    current = ""
+    for char in word:
+        if str.isalnum(char):
+            current += char
+        else:
+            break
+    return current
+
+
+def extract(tweet, symbol):
+    """(str,str) -> list of str
+    Return the list of the alphanumeric strings right after each
+    occurence of the symbol.
+    >>> extract("@John@Lily","@")
+    ['John', 'Lily']
+    >>> extract("#John#Lily","#")
+    ['John', 'Lily']
+    >>> extract("#John#Lily","@")
+    []
+    """
+    if symbol not in tweet:
+        return []
+    sym_index = tweet.index(symbol)
+    consider = tweet[sym_index:]
+    collect = consider.split(symbol)
+    result = []
+    for substring in collect:
+        if collect_word(substring) != "":
+            result.append(collect_word(substring))
+    return result
+
+
+def make_unique_list(lst):
+    """(list) -> None
+    Delete all repeated elements in the list
+    >>> lst = [1,2,3,4]
+    >>> make_unique_list(lst)
+    >>> lst
+    [1, 2, 3, 4]
+    >>> lst = [1,1,1,2,3,4]
+    >>> make_unique_list(lst)
+    >>> lst
+    [1, 2, 3, 4]
+    """
+    seen = []
+    twice = []
+    for item in lst:
+        if item not in seen:
+            seen.append(item)
+        else:
+            twice.append(item)
+    for item in twice:
+        lst.remove(item)
+
+
+def remove_punctuation(word):
+    """(str) -> str
+    Return a string exactly the same as word but do not contain
+    any punctuation
+    >>> remove_punctuation("hello")
+    'hello'
+    >>> remove_punctuation("don't")
+    'dont'
+    >>> remove_punctuation("are you right?")
+    'areyouright'
+    """
+    result = word
+    for char in word:
+        if not str.isalnum(char):
+            result = result.replace(char, "")
+    return result
+
+
+def contains_keywords(tweet):
+    """(str) -> bool
+    Return True if tweet contains either '#' or '@' or 'http';
+    Return False otherwise
+    >>> contains_keywords("hello")
+    False
+    >>> contains_keywords("@hi John")
+    True
+    >>> contains_keywords("my web https://google.ca")
+    True
+    >>> contains_keywords("#MakeAmericanGreatAgain")
+    True
+    """
+    if "#" in tweet:
+        return True
+    elif "@" in tweet:
+        return True
+    elif "http" in tweet:
+        return True
+    return False
+
+
+def read_helper(info, candidate):
+    """(str,str) -> list of tuple
+    Return the list of tuple based on the candidate and
+    all information related
+    >>> candidate = "Trump"
+    >>> tweet1 = '1,2,USA,iPhone,3,4\\nTWEET TEXT1\\n<<<EOT\\n'
+    >>> tweet2 = "5,6,USA,iPhone,7,8\\nTWEET TEXT2\\n<<<EOT\\n"
+    >>> info = tweet1 + tweet2
+    >>> read_helper(info,candidate)[0]
+    ('Trump', 'TWEET TEXT1\\n', 2, 'iPhone', 3, 4)
+    >>> read_helper(info,candidate)[1]
+    ('Trump', 'TWEET TEXT2\\n', 6, 'iPhone', 7, 8)
+    """
+    lst = info.split("<<<EOT\n")
+    result = []
+    for item in lst:
+        if item == "":
+            continue
+        consider = item.split(",")
+        date = int(consider[1])
+        source = consider[3]
+        fav, ret = int(consider[4]), int(consider[5].split("\n")[0])
+        tweet_text = item[item.index("\n")+1:]
+        result.append(tuple([candidate, tweet_text, date, source, fav, ret]))
+    return result
+
+
+# ======================== function s in tweet =======================
+def extract_mentions(tweet):
+    """(str) -> list of str
+    Return the list of the alphanumeric strings right after each
+    occurence of the "@".
+    >>> extract_mentions("@John@Lily")
+    ['John', 'Lily']
+    >>> extract_mentions("@John@Lily @ Kim @Mike @#Simon #Jack")
+    ['John', 'Lily', 'Mike']
+    >>> extract_mentions("Hello world #Python")
+    []
+    """
+    result = extract(tweet, "@")
+    return result
+
+
+def extract_hashtags(tweet):
+    """(str) -> list of str
+    Return the list of the unique alphanumeric strings right after each
+    occurence of the "#".
+    >>> extract_hashtags("#John#Lily")
+    ['John', 'Lily']
+    >>> extract_hashtags("#John#Lily # Kim #Mike #@Simon @Jack")
+    ['John', 'Lily', 'Mike']
+    >>> extract_hashtags("Hello world @Python")
+    []
+    >>> extract_hashtags("#s#s#s#s#s#s")
+    ['s']
+    """
+    result = extract(tweet, "#")
+    make_unique_list(result)
+    return result
+
+
+def count_words(tweet, dic):
+    """(str,dict) -> None
+    Count each word in tweet that doesn't contains "@","#" or "http".
+    Remove all punctuations and Update the counts of words in the dictionary.
+    If a word's lowercase is not the dictionary yet, it should be added.
+    >>> d = dict()
+    >>> d["you"] = 1
+    >>> count_words("you #me he?",d)
+    >>> d == {'he': 1, 'you': 2}
+    True
+    >>> d = dict()
+    >>> tweet = "@utmandrew Don't you wish you could vote? #MakeAmericaGreat"
+    >>> count_words(tweet,d)
+    >>> d == {'dont': 1, 'could': 1, 'vote': 1, 'you': 2, 'wish': 1}
+    True
+    """
+    collect = tweet.split(" ")
+    for words in collect:
+        if contains_keywords(words):
+            continue
+        else:
+            valid_word = remove_punctuation(words)
+            if valid_word.lower() in dic:
+                dic[valid_word.lower()] += 1
+            else:
+                dic[valid_word.lower()] = 1
+
+
+def common_words(dic, n):
+    """(dict,int) -> None
+    Update the dictionary so that it includes the most common n keys;
+    Remove the tie when there are more than n keys in the dictionary.
+    >>> d = {"a": 1,"b": 2,"c": 3,"d": 4}
+    >>> common_words(d,5)
+    >>> d == {"a": 1,"b": 2,"c": 3,"d": 4}
+    True
+    >>> d = {"a":1,"b":2,"c":3,"d":4}
+    >>> common_words(d,2)
+    >>> d == {'c': 3, 'd': 4}
+    True
+    >>> d = {"a":3,"b":3,"c":3,"d":4}
+    >>> common_words(d,2)
+    >>> d == {'d': 4}
+    True
+    >>> d = {"a":3,"b":3,"c":3,"d":3}
+    >>> common_words(d,2)
+    >>> d == {}
+    True
+    """
+    value = list(dic.values())
+    value.sort()
+    # when more than n values in dic, update
+    if len(value) > n:
+        target = value[len(value)-n:].copy()
+        check = value[len(value)-n-1]
+        for item in value[len(value)-n:]:
+            if item == check:
+                target.remove(item)
+        make_unique_list(target)
+        collect = []
+        for item in dic:
+            if dic[item] not in target:
+                collect.append(item)
+        for item in collect:
+            dic.pop(item)
+
+
+def read_tweets(file):
+    """(str) -> dict
+    Read the given file and return a dictionary whose keys are the
+    candidates and the values lists of tuples of
+    (candidate,tweet text,day,source, favourite_count, retweet_count)
+    """
+    d = dict()
+    candidate = ""
+    candidate_all_text = ""
+    for line in file:
+        if line.endswith(":\n"):
+            if candidate_all_text != "":
+                d[candidate] = read_helper(candidate_all_text, candidate)
+            candidate = line.replace(":\n", "")
+            candidate_all_text = ""
+        else:
+            candidate_all_text += line
+
+    if candidate not in d:
+        d[candidate] = read_helper(candidate_all_text, candidate)
+    return d
+
+
+def most_popular(dictionary, date1, date2):
+    """(dict,int,int) -> str
+    Return the name of the most popular candidate between date1 and date2.
+    Return the string "Tie" if there is a Tie between two most popular
+    candidates.
+    >>> d = dict()
+    >>> tup1 = ("Trump","Text1",0,"Iphone",0,1)
+    >>> tup2 = ("Trump","Text2",3,"Iphone",1,1)
+    >>> d["Trump"] = [tup1,tup2]
+    >>> tup3 = ("Hillary","Text3",1,"Iphone",1,1)
+    >>> tup4 = ("Hillary","Text3",1,"Iphone",1,0)
+    >>> d["Hillary"] = [tup3,tup4]
+    >>> most_popular(d,0,3)
+    'Tie'
+    >>> most_popular(d,0,0)
+    'Trump'
+    >>> most_popular(d,0,1)
+    'Hillary'
+    """
+    result = ""
+    number = 0
+    for name, value in dictionary.items():
+        popularity = 0
+        for tweet in value:
+            if date1 <= tweet[2] <= date2:
+                popularity += tweet[4]+tweet[5]
+        if popularity > number:
+            number = popularity
+            result = name
+        elif popularity == number:
+            result = "Tie"
+    return result
+
+
+def detect_author(d, keyword):
+    """(dict,str) -> str
+    Return the username of the most likely author of that tweet, based on the
+    keyword(hashtag) they use. If the keyword(hahstag) is used by two or more
+    candidates, return 'Unknown'
+    >>> d = dict()
+    >>> tup1 = ("Trump","#key1#key2",0,"Iphone",0,1)
+    >>> tup2 = ("Trump","#key2#key2",3,"Iphone",1,1)
+    >>> d["Trump"] = [tup1,tup2]
+    >>> tup3 = ("Hillary","#key2",1,"Iphone",1,1)
+    >>> tup4 = ("Hillary","#key3",1,"Iphone",1,0)
+    >>> d["Hillary"] = [tup3,tup4]
+    >>> detect_author(d,"key1")
+    'Trump'
+    >>> detect_author(d,"key2")
+    'Unknown'
+    >>> detect_author(d,"key3")
+    'Hillary'
+    """
+    author = "Unknown"
+    for candidate in d:
+        hashtags = []
+        for tweet in d[candidate]:
+            tweet_text = tweet[1]
+            hashtags += extract_hashtags(tweet_text)
+        if keyword in hashtags:
+            if author != "Unknown":
+                return "Unknown"
+            else:
+                author = candidate
+    return author
+
+if __name__ == '__main__':
+    doctest.testmod()
